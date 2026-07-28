@@ -100,6 +100,11 @@ docker build -t workspace-admin-mcp .
 - No credentials in the image or repo; `.gitignore` blocks key files.
 - Structured audit trail suitable for shipping to Cloud Logging.
 
+## Roadmap & limitations
+
+This is v0.1 — the logic is complete and unit-tested; the live Admin SDK layer,
+pagination, and HTTP-transport auth are the next steps. See [ROADMAP.md](ROADMAP.md).
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
