@@ -1,6 +1,6 @@
 # workspace-admin-mcp
 
-[![CI](https://github.com/pizzacrustreviewer/workspace-admin-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/pizzacrustreviewer/workspace-admin-mcp/actions/workflows/ci.yml)
+[![CI](https://github.com/pizzacrustreviewer/GWS-MCP/actions/workflows/ci.yml/badge.svg)](https://github.com/pizzacrustreviewer/GWS-MCP/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
@@ -41,7 +41,7 @@ Full diagram and design notes in [`docs/architecture.md`](docs/architecture.md).
 ## Quickstart (local)
 
 ```bash
-git clone https://github.com/pizzacrustreviewer/workspace-admin-mcp.git
+git clone https://github.com/pizzacrustreviewer/GWS-MCP.git
 cd workspace-admin-mcp
 pip install -e ".[dev]"
 pytest -q          # tests run with no credentials (in-memory fake client)
