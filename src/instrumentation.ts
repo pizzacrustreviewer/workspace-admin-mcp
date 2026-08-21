@@ -11,7 +11,7 @@ const sdk = new NodeSDK({
   resource: resourceFromAttributes({
     [ATTR_SERVICE_NAME]: "google-workspace-admin-mcp",
     [ATTR_SERVICE_NAMESPACE]: "enterprise-agents",
-    [ATTR_SERVICE_VERSION]: "0.1.0"
+    [ATTR_SERVICE_VERSION]: "0.2.0"
   }),
   traceExporter: new OTLPTraceExporter()
 });

@@ -29,6 +29,22 @@ describe("resolveToolPolicy", () => {
     });
 
     expect(policy.allowedTools).toEqual(["workspace_users_list"]);
+    expect(policy.grantedScopes).toEqual([TOOL_SCOPES.workspaceUsersRead]);
+  });
+
+  it("drops configured scopes that no exposed tool requires", () => {
+    const policy = resolveToolPolicy({
+      profile: "inventory",
+      allowedTools: ["workspace_users_list"],
+      grantedScopes: [
+        TOOL_SCOPES.workspaceUsersRead,
+        TOOL_SCOPES.workspaceGroupsRead,
+        TOOL_SCOPES.workspaceAuditRead
+      ]
+    });
+
+    expect(policy.allowedTools).toEqual(["workspace_users_list"]);
+    expect(policy.grantedScopes).toEqual([TOOL_SCOPES.workspaceUsersRead]);
   });
 
   it("maps internal scopes to precise Google read-only scopes", () => {

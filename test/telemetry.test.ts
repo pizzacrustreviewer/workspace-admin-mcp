@@ -23,7 +23,7 @@ beforeEach(() => exporter.reset());
 afterAll(() => provider.shutdown());
 
 describe("MCP trace propagation", () => {
-  it("accepts W3C trace context but drops untrusted baggage", () => {
+  it("accepts traceparent but drops untrusted tracestate and baggage", () => {
     expect(
       traceCarrierFromMeta({
         traceparent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
@@ -31,8 +31,7 @@ describe("MCP trace propagation", () => {
         baggage: "user.email=sensitive@example.com"
       })
     ).toEqual({
-      traceparent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
-      tracestate: "vendor=value"
+      traceparent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
     });
   });
 

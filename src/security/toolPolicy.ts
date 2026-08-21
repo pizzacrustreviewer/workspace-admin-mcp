@@ -99,11 +99,15 @@ export function resolveToolPolicy(input: {
   const requiredScopesForAllowedTools = unique(
     allowedTools.flatMap((toolName) => TOOL_PERMISSIONS[toolName].requiredScopes)
   );
-  const grantedScopes = input.grantedScopes ?? requiredScopesForAllowedTools;
+  const configuredScopes = input.grantedScopes ?? requiredScopesForAllowedTools;
+  const exposedTools = allowedTools.filter((toolName) => hasRequiredScopes(toolName, configuredScopes));
+  const grantedScopes = unique(
+    exposedTools.flatMap((toolName) => TOOL_PERMISSIONS[toolName].requiredScopes)
+  );
 
   return {
     profile,
-    allowedTools: allowedTools.filter((toolName) => hasRequiredScopes(toolName, grantedScopes)),
+    allowedTools: exposedTools,
     grantedScopes
   };
 }

@@ -10,11 +10,10 @@ import {
 } from "@opentelemetry/api";
 import {
   TRACEPARENT_META_KEY,
-  TRACESTATE_META_KEY,
   type RequestMeta
 } from "@modelcontextprotocol/server";
 
-const tracer = trace.getTracer("com.anthony.workspace-admin", "0.1.0");
+const tracer = trace.getTracer("com.anthony.workspace-admin", "0.2.0");
 
 export interface SpanOptions {
   attributes?: Attributes;
@@ -59,7 +58,6 @@ export function mcpParentContext(meta: RequestMeta | undefined): Context {
 export function traceCarrierFromMeta(meta: RequestMeta | undefined): Record<string, string> {
   const carrier: Record<string, string> = {};
   copyString(meta, carrier, TRACEPARENT_META_KEY);
-  copyString(meta, carrier, TRACESTATE_META_KEY);
   return carrier;
 }
 
