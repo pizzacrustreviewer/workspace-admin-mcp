@@ -5,6 +5,10 @@ import { createLogger } from "../src/logger.js";
 import { createMcpServer } from "../src/mcpServer.js";
 import { resolveToolPolicy } from "../src/security/toolPolicy.js";
 import { traceCarrierFromMeta } from "../src/telemetry.js";
+import {
+  GoogleWorkspaceAdminClient,
+  GoogleWorkspaceApis
+} from "../src/workspace/googleWorkspaceAdminClient.js";
 import { WorkspaceAdminClient } from "../src/workspace/types.js";
 
 const exporter = new InMemorySpanExporter();
@@ -13,9 +17,18 @@ const provider = new NodeTracerProvider({
 });
 
 const client: WorkspaceAdminClient = {
-  listUsers: async () => [],
-  listGroups: async () => [],
-  listActivities: async () => []
+  listUsers: async () => emptyPage(),
+  getUser: async () => ({
+    id: "user-1",
+    primaryEmail: "user@example.com",
+    suspended: false,
+    archived: false,
+    isAdmin: false,
+    isDelegatedAdmin: false
+  }),
+  listGroups: async () => emptyPage(),
+  listGroupMembers: async () => emptyPage(),
+  listActivities: async () => emptyPage()
 };
 
 beforeAll(() => provider.register());
@@ -62,6 +75,44 @@ describe("MCP trace propagation", () => {
     expect(policySpan?.parentSpanContext?.spanId).toBe(toolSpan?.spanContext().spanId);
     expect(JSON.stringify(spans.map((span) => span.attributes))).not.toContain("sensitive@example.com");
   });
+
+  it("keeps the Google adapter span inside the MCP tool trace", async () => {
+    const googleClient = new GoogleWorkspaceAdminClient(
+      undefined,
+      "my_customer",
+      {
+        directory: {
+          users: { list: async () => ({ data: { users: [] } }) }
+        }
+      } as unknown as GoogleWorkspaceApis
+    );
+    const server = createMcpServer(
+      googleClient,
+      createLogger("error"),
+      resolveToolPolicy({ profile: "inventory", allowedTools: ["workspace_users_list"] })
+    );
+    const handler = registeredToolHandler(server, "workspace_users_list");
+
+    await handler(
+      { maxResults: 1 },
+      {
+        mcpReq: {
+          _meta: {
+            traceparent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+          }
+        }
+      }
+    );
+
+    const spans = exporter.getFinishedSpans();
+    const toolSpan = spans.find((span) => span.name === "tools/call workspace_users_list");
+    const googleSpan = spans.find(
+      (span) => span.name === "google.workspace directory.users.list"
+    );
+
+    expect(googleSpan?.spanContext().traceId).toBe("4bf92f3577b34da6a3ce929d0e0e4736");
+    expect(googleSpan?.parentSpanContext?.spanId).toBe(toolSpan?.spanContext().spanId);
+  });
 });
 
 function registeredToolHandler(
@@ -73,4 +124,8 @@ function registeredToolHandler(
   })._registeredTools;
 
   return registeredTools[name].handler;
+}
+
+function emptyPage<T>() {
+  return { items: [] as T[], resultCount: 0, complete: true };
 }

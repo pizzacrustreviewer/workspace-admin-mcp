@@ -10,7 +10,7 @@ describe("resolveToolPolicy", () => {
     const policy = resolveToolPolicy({});
 
     expect(policy.profile).toBe("risk");
-    expect(policy.allowedTools).toEqual(["workspace_risk_snapshot"]);
+    expect(policy.allowedTools).toEqual(["workspace_privileged_user_review"]);
   });
 
   it("intersects explicit allowed tools with the selected profile", () => {
@@ -28,7 +28,7 @@ describe("resolveToolPolicy", () => {
       grantedScopes: [TOOL_SCOPES.workspaceUsersRead]
     });
 
-    expect(policy.allowedTools).toEqual(["workspace_users_list"]);
+    expect(policy.allowedTools).toEqual(["workspace_users_list", "workspace_user_get"]);
     expect(policy.grantedScopes).toEqual([TOOL_SCOPES.workspaceUsersRead]);
   });
 
@@ -50,6 +50,9 @@ describe("resolveToolPolicy", () => {
   it("maps internal scopes to precise Google read-only scopes", () => {
     expect(toGoogleScopes([TOOL_SCOPES.workspaceUsersRead])).toEqual([
       "https://www.googleapis.com/auth/admin.directory.user.readonly"
+    ]);
+    expect(toGoogleScopes([TOOL_SCOPES.workspaceGroupMembersRead])).toEqual([
+      "https://www.googleapis.com/auth/admin.directory.group.member.readonly"
     ]);
   });
 });
