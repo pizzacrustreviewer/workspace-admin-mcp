@@ -3,6 +3,7 @@ import * as z from "zod/v4";
 export const TOOL_SCOPES = {
   workspaceUsersRead: "workspace.users.read",
   workspaceGroupsRead: "workspace.groups.read",
+  workspaceGroupMembersRead: "workspace.group-members.read",
   workspaceAuditRead: "workspace.audit.read"
 } as const;
 
@@ -11,6 +12,8 @@ export type ToolScope = (typeof TOOL_SCOPES)[keyof typeof TOOL_SCOPES];
 export const GOOGLE_SCOPE_BY_TOOL_SCOPE: Record<ToolScope, string> = {
   [TOOL_SCOPES.workspaceUsersRead]: "https://www.googleapis.com/auth/admin.directory.user.readonly",
   [TOOL_SCOPES.workspaceGroupsRead]: "https://www.googleapis.com/auth/admin.directory.group.readonly",
+  [TOOL_SCOPES.workspaceGroupMembersRead]:
+    "https://www.googleapis.com/auth/admin.directory.group.member.readonly",
   [TOOL_SCOPES.workspaceAuditRead]: "https://www.googleapis.com/auth/admin.reports.audit.readonly"
 };
 
@@ -20,9 +23,12 @@ export type SecurityProfile = (typeof SECURITY_PROFILES)[number];
 
 export const TOOL_NAMES = [
   "workspace_users_list",
+  "workspace_user_get",
   "workspace_groups_list",
+  "workspace_group_members_list",
+  "workspace_user_memberships_list",
   "workspace_admin_activity_search",
-  "workspace_risk_snapshot"
+  "workspace_privileged_user_review"
 ] as const;
 
 export type ToolName = (typeof TOOL_NAMES)[number];
@@ -45,11 +51,35 @@ export const TOOL_PERMISSIONS: Record<ToolName, ToolPermission> = {
     profiles: ["inventory", "full-readonly"],
     readsUntrustedWorkspaceData: true
   },
+  workspace_user_get: {
+    name: "workspace_user_get",
+    title: "Get Workspace User",
+    requiredScopes: [TOOL_SCOPES.workspaceUsersRead],
+    risk: "low",
+    profiles: ["inventory", "full-readonly"],
+    readsUntrustedWorkspaceData: true
+  },
   workspace_groups_list: {
     name: "workspace_groups_list",
     title: "List Workspace Groups",
     requiredScopes: [TOOL_SCOPES.workspaceGroupsRead],
     risk: "low",
+    profiles: ["inventory", "full-readonly"],
+    readsUntrustedWorkspaceData: true
+  },
+  workspace_group_members_list: {
+    name: "workspace_group_members_list",
+    title: "List Workspace Group Members",
+    requiredScopes: [TOOL_SCOPES.workspaceGroupMembersRead],
+    risk: "medium",
+    profiles: ["inventory", "full-readonly"],
+    readsUntrustedWorkspaceData: true
+  },
+  workspace_user_memberships_list: {
+    name: "workspace_user_memberships_list",
+    title: "List Workspace User Memberships",
+    requiredScopes: [TOOL_SCOPES.workspaceGroupsRead],
+    risk: "medium",
     profiles: ["inventory", "full-readonly"],
     readsUntrustedWorkspaceData: true
   },
@@ -61,9 +91,9 @@ export const TOOL_PERMISSIONS: Record<ToolName, ToolPermission> = {
     profiles: ["audit", "full-readonly"],
     readsUntrustedWorkspaceData: true
   },
-  workspace_risk_snapshot: {
-    name: "workspace_risk_snapshot",
-    title: "Build Admin Risk Snapshot",
+  workspace_privileged_user_review: {
+    name: "workspace_privileged_user_review",
+    title: "Review Privileged Workspace User",
     requiredScopes: [
       TOOL_SCOPES.workspaceUsersRead,
       TOOL_SCOPES.workspaceGroupsRead,

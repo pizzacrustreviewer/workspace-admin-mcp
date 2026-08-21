@@ -5,33 +5,157 @@ import * as z from "zod/v4";
 import { Logger } from "./logger.js";
 import { canExposeTool, ToolName, ToolPolicy, TOOL_PERMISSIONS } from "./security/toolPolicy.js";
 import { mcpParentContext, withSpan } from "./telemetry.js";
-import { buildRiskSnapshot } from "./workspace/riskSnapshot.js";
-import { WorkspaceAdminClient } from "./workspace/types.js";
+import { buildPrivilegedUserReview } from "./workspace/privilegedUserReview.js";
+import {
+  ResultPage,
+  WorkspaceActivity,
+  WorkspaceAdminClient
+} from "./workspace/types.js";
 
 const MaxResultsSchema = z.number().int().min(1).max(200).default(50);
+const PageTokenSchema = z.string().min(1).max(2048).optional();
+const ResourceKeySchema = z.string().trim().min(1).max(320).regex(/^[^\r\n]+$/);
 
 const UsersListInput = z.object({
   maxResults: MaxResultsSchema,
-  query: z.string().min(1).max(500).optional()
+  query: z.string().min(1).max(500).optional(),
+  pageToken: PageTokenSchema
 });
+
+const UserGetInput = z.object({ userKey: ResourceKeySchema });
 
 const GroupsListInput = z.object({
   maxResults: MaxResultsSchema,
-  query: z.string().min(1).max(500).optional()
+  query: z.string().min(1).max(500).optional(),
+  pageToken: PageTokenSchema
 });
 
-const ActivitySearchInput = z.object({
-  applicationName: z.string().min(1).max(80).default("admin"),
-  maxResults: z.number().int().min(1).max(100).default(25),
-  eventName: z.string().min(1).max(120).optional(),
-  startTime: z.iso.datetime().optional(),
-  endTime: z.iso.datetime().optional()
+const GroupMembersListInput = z.object({
+  groupKey: ResourceKeySchema,
+  maxResults: MaxResultsSchema,
+  pageToken: PageTokenSchema
 });
 
-const RiskSnapshotInput = z.object({
-  userLimit: z.number().int().min(1).max(200).default(100),
-  groupLimit: z.number().int().min(1).max(200).default(100),
-  activityLimit: z.number().int().min(1).max(100).default(50)
+const UserMembershipsListInput = z.object({
+  userKey: ResourceKeySchema,
+  maxResults: MaxResultsSchema,
+  pageToken: PageTokenSchema
+});
+
+const ActivitySearchInput = z
+  .object({
+    userKey: ResourceKeySchema,
+    maxResults: z.number().int().min(1).max(100).default(25),
+    eventName: z.string().regex(/^[A-Za-z0-9_]+$/).max(120).optional(),
+    startTime: z.iso.datetime(),
+    endTime: z.iso.datetime(),
+    pageToken: PageTokenSchema,
+    includeParameters: z.boolean().default(false)
+  })
+  .superRefine(validateActivityWindow);
+
+const PrivilegedUserReviewInput = z
+  .object({
+    userKey: ResourceKeySchema,
+    membershipLimit: z.number().int().min(1).max(200).default(100),
+    activityLimit: z.number().int().min(1).max(100).default(50),
+    startTime: z.iso.datetime(),
+    endTime: z.iso.datetime()
+  })
+  .superRefine(validateActivityWindow);
+
+const WorkspaceUserSchema = z.object({
+  id: z.string(),
+  primaryEmail: z.string(),
+  fullName: z.string().optional(),
+  suspended: z.boolean(),
+  archived: z.boolean(),
+  isAdmin: z.boolean(),
+  isDelegatedAdmin: z.boolean(),
+  lastLoginTime: z.string().optional(),
+  orgUnitPath: z.string().optional()
+});
+
+const WorkspaceGroupSchema = z.object({
+  id: z.string(),
+  email: z.string(),
+  name: z.string().optional(),
+  directMembersCount: z.string().optional(),
+  adminCreated: z.boolean().optional()
+});
+
+const WorkspaceGroupMemberSchema = z.object({
+  id: z.string(),
+  email: z.string().optional(),
+  role: z.string().optional(),
+  status: z.string().optional(),
+  type: z.string().optional()
+});
+
+const WorkspaceActivityParameterSchema = z.object({
+  name: z.string(),
+  valueKind: z.enum([
+    "string",
+    "integer",
+    "boolean",
+    "strings",
+    "integers",
+    "message",
+    "messages",
+    "unknown"
+  ]),
+  values: z.array(z.string())
+});
+
+const WorkspaceActivityEventSchema = z.object({
+  name: z.string().optional(),
+  type: z.string().optional(),
+  resourceIds: z.array(z.string()),
+  parameters: z.array(WorkspaceActivityParameterSchema).optional(),
+  status: z
+    .object({
+      eventStatus: z.string().optional(),
+      errorCode: z.string().optional(),
+      httpStatusCode: z.number().int().optional()
+    })
+    .optional()
+});
+
+const WorkspaceActivitySchema = z.object({
+  id: z.string().optional(),
+  time: z.string().optional(),
+  applicationName: z.string().optional(),
+  actorEmail: z.string().optional(),
+  events: z.array(WorkspaceActivityEventSchema)
+});
+
+const UsersListOutput = z.object({ users: resultPageSchema(WorkspaceUserSchema) });
+const UserGetOutput = z.object({ user: WorkspaceUserSchema });
+const GroupsListOutput = z.object({ groups: resultPageSchema(WorkspaceGroupSchema) });
+const GroupMembersListOutput = z.object({ members: resultPageSchema(WorkspaceGroupMemberSchema) });
+const ActivitySearchOutput = z.object({ activities: resultPageSchema(WorkspaceActivitySchema) });
+const PrivilegedUserReviewOutput = z.object({
+  review: z.object({
+    generatedAt: z.string(),
+    subject: WorkspaceUserSchema,
+    privilege: z.object({
+      isAdmin: z.boolean(),
+      isDelegatedAdmin: z.boolean()
+    }),
+    memberships: resultPageSchema(WorkspaceGroupSchema),
+    recentAdminActivity: resultPageSchema(WorkspaceActivitySchema),
+    findings: z.array(
+      z.object({
+        severity: z.literal("high"),
+        title: z.string(),
+        evidence: z.object({
+          userId: z.string(),
+          suspended: z.boolean(),
+          archived: z.boolean()
+        })
+      })
+    )
+  })
 });
 
 export function createMcpServer(
@@ -41,130 +165,269 @@ export function createMcpServer(
 ): McpServer {
   const server = new McpServer({
     name: "google-workspace-admin",
-    version: "0.1.0"
+    version: "0.2.0"
   });
 
   if (toolCanBeRegistered(policy, logger, "workspace_users_list")) {
     server.registerTool(
       "workspace_users_list",
-      {
-        title: TOOL_PERMISSIONS.workspace_users_list.title,
-        description: "List Google Workspace users with safe, basic profile fields.",
-        inputSchema: UsersListInput,
-        annotations: readOnlyAnnotations("workspace_users_list"),
-        _meta: toolMeta("workspace_users_list")
-      },
-      async (input, ctx) => {
-        return withToolSpan("workspace_users_list", policy, ctx.mcpReq._meta, async (span) => {
+      toolConfig(
+        "workspace_users_list",
+        "List Google Workspace users using bounded pages and safe profile fields.",
+        UsersListInput,
+        UsersListOutput
+      ),
+      async (input, ctx) =>
+        withToolSpan("workspace_users_list", policy, ctx.mcpReq._meta, async (span) => {
           await assertToolAllowed(policy, logger, "workspace_users_list");
           const args = UsersListInput.parse(input);
           logger.info("tool_called", {
             tool: "workspace_users_list",
             maxResults: args.maxResults,
-            hasQuery: Boolean(args.query)
+            hasQuery: Boolean(args.query),
+            hasPageToken: Boolean(args.pageToken)
           });
           const users = await client.listUsers(args);
-          span.setAttribute("workspace.result.count", users.length);
-
+          recordPageResult(span, users);
           return jsonResponse({ users });
-        });
-      }
+        })
+    );
+  }
+
+  if (toolCanBeRegistered(policy, logger, "workspace_user_get")) {
+    server.registerTool(
+      "workspace_user_get",
+      toolConfig(
+        "workspace_user_get",
+        "Retrieve one Google Workspace user by email, alias, or immutable ID.",
+        UserGetInput,
+        UserGetOutput
+      ),
+      async (input, ctx) =>
+        withToolSpan("workspace_user_get", policy, ctx.mcpReq._meta, async () => {
+          await assertToolAllowed(policy, logger, "workspace_user_get");
+          const args = UserGetInput.parse(input);
+          logger.info("tool_called", { tool: "workspace_user_get" });
+          const user = await client.getUser(args.userKey);
+          return jsonResponse({ user });
+        })
     );
   }
 
   if (toolCanBeRegistered(policy, logger, "workspace_groups_list")) {
     server.registerTool(
       "workspace_groups_list",
-      {
-        title: TOOL_PERMISSIONS.workspace_groups_list.title,
-        description: "List Google Workspace groups with basic metadata.",
-        inputSchema: GroupsListInput,
-        annotations: readOnlyAnnotations("workspace_groups_list"),
-        _meta: toolMeta("workspace_groups_list")
-      },
-      async (input, ctx) => {
-        return withToolSpan("workspace_groups_list", policy, ctx.mcpReq._meta, async (span) => {
+      toolConfig(
+        "workspace_groups_list",
+        "List Google Workspace groups using bounded pages and basic metadata.",
+        GroupsListInput,
+        GroupsListOutput
+      ),
+      async (input, ctx) =>
+        withToolSpan("workspace_groups_list", policy, ctx.mcpReq._meta, async (span) => {
           await assertToolAllowed(policy, logger, "workspace_groups_list");
           const args = GroupsListInput.parse(input);
           logger.info("tool_called", {
             tool: "workspace_groups_list",
             maxResults: args.maxResults,
-            hasQuery: Boolean(args.query)
+            hasQuery: Boolean(args.query),
+            hasPageToken: Boolean(args.pageToken)
           });
           const groups = await client.listGroups(args);
-          span.setAttribute("workspace.result.count", groups.length);
-
+          recordPageResult(span, groups);
           return jsonResponse({ groups });
-        });
-      }
+        })
+    );
+  }
+
+  if (toolCanBeRegistered(policy, logger, "workspace_group_members_list")) {
+    server.registerTool(
+      "workspace_group_members_list",
+      toolConfig(
+        "workspace_group_members_list",
+        "List direct members of one Workspace group using a dedicated member-read scope.",
+        GroupMembersListInput,
+        GroupMembersListOutput
+      ),
+      async (input, ctx) =>
+        withToolSpan("workspace_group_members_list", policy, ctx.mcpReq._meta, async (span) => {
+          await assertToolAllowed(policy, logger, "workspace_group_members_list");
+          const args = GroupMembersListInput.parse(input);
+          logger.info("tool_called", {
+            tool: "workspace_group_members_list",
+            maxResults: args.maxResults,
+            hasPageToken: Boolean(args.pageToken)
+          });
+          const members = await client.listGroupMembers(args);
+          recordPageResult(span, members);
+          return jsonResponse({ members });
+        })
+    );
+  }
+
+  if (toolCanBeRegistered(policy, logger, "workspace_user_memberships_list")) {
+    server.registerTool(
+      "workspace_user_memberships_list",
+      toolConfig(
+        "workspace_user_memberships_list",
+        "List groups that contain one Workspace user.",
+        UserMembershipsListInput,
+        GroupsListOutput
+      ),
+      async (input, ctx) =>
+        withToolSpan("workspace_user_memberships_list", policy, ctx.mcpReq._meta, async (span) => {
+          await assertToolAllowed(policy, logger, "workspace_user_memberships_list");
+          const args = UserMembershipsListInput.parse(input);
+          logger.info("tool_called", {
+            tool: "workspace_user_memberships_list",
+            maxResults: args.maxResults,
+            hasPageToken: Boolean(args.pageToken)
+          });
+          const groups = await client.listGroups({
+            userKey: args.userKey,
+            maxResults: args.maxResults,
+            pageToken: args.pageToken
+          });
+          recordPageResult(span, groups);
+          return jsonResponse({ groups });
+        })
     );
   }
 
   if (toolCanBeRegistered(policy, logger, "workspace_admin_activity_search")) {
     server.registerTool(
       "workspace_admin_activity_search",
-      {
-        title: TOOL_PERMISSIONS.workspace_admin_activity_search.title,
-        description: "Search recent Google Workspace Admin SDK audit activity.",
-        inputSchema: ActivitySearchInput,
-        annotations: readOnlyAnnotations("workspace_admin_activity_search"),
-        _meta: toolMeta("workspace_admin_activity_search")
-      },
-      async (input, ctx) => {
-        return withToolSpan(
-          "workspace_admin_activity_search",
-          policy,
-          ctx.mcpReq._meta,
-          async (span) => {
-            await assertToolAllowed(policy, logger, "workspace_admin_activity_search");
-            const args = ActivitySearchInput.parse(input);
-            logger.info("tool_called", {
-              tool: "workspace_admin_activity_search",
-              applicationName: args.applicationName,
-              maxResults: args.maxResults,
-              hasEventFilter: Boolean(args.eventName),
-              hasTimeRange: Boolean(args.startTime || args.endTime)
-            });
-            const activities = await client.listActivities(args);
-            span.setAttribute("workspace.result.count", activities.length);
-
-            return jsonResponse({ activities });
-          }
-        );
-      }
+      toolConfig(
+        "workspace_admin_activity_search",
+        "Search a bounded Admin audit window for one user. Event parameters are excluded by default.",
+        ActivitySearchInput,
+        ActivitySearchOutput
+      ),
+      async (input, ctx) =>
+        withToolSpan("workspace_admin_activity_search", policy, ctx.mcpReq._meta, async (span) => {
+          await assertToolAllowed(policy, logger, "workspace_admin_activity_search");
+          const args = ActivitySearchInput.parse(input);
+          logger.info("tool_called", {
+            tool: "workspace_admin_activity_search",
+            maxResults: args.maxResults,
+            hasEventFilter: Boolean(args.eventName),
+            hasPageToken: Boolean(args.pageToken),
+            includesParameters: args.includeParameters
+          });
+          const page = await client.listActivities(args);
+          const activities = args.includeParameters ? page : withoutActivityParameters(page);
+          recordPageResult(span, activities);
+          return jsonResponse({ activities });
+        })
     );
   }
 
-  if (toolCanBeRegistered(policy, logger, "workspace_risk_snapshot")) {
+  if (toolCanBeRegistered(policy, logger, "workspace_privileged_user_review")) {
     server.registerTool(
-      "workspace_risk_snapshot",
-      {
-        title: TOOL_PERMISSIONS.workspace_risk_snapshot.title,
-        description: "Return a deterministic Google Workspace admin risk snapshot for triage.",
-        inputSchema: RiskSnapshotInput,
-        annotations: readOnlyAnnotations("workspace_risk_snapshot"),
-        _meta: toolMeta("workspace_risk_snapshot")
-      },
-      async (input, ctx) => {
-        return withToolSpan("workspace_risk_snapshot", policy, ctx.mcpReq._meta, async (span) => {
-          await assertToolAllowed(policy, logger, "workspace_risk_snapshot");
-          const args = RiskSnapshotInput.parse(input);
-          logger.info("tool_called", { tool: "workspace_risk_snapshot", ...args });
-          const [users, groups, activities] = await Promise.all([
-            client.listUsers({ maxResults: args.userLimit }),
-            client.listGroups({ maxResults: args.groupLimit }),
-            client.listActivities({ applicationName: "admin", maxResults: args.activityLimit })
+      "workspace_privileged_user_review",
+      toolConfig(
+        "workspace_privileged_user_review",
+        "Inspect one user's privilege state, memberships, and bounded Admin activity evidence.",
+        PrivilegedUserReviewInput,
+        PrivilegedUserReviewOutput
+      ),
+      async (input, ctx) =>
+        withToolSpan("workspace_privileged_user_review", policy, ctx.mcpReq._meta, async (span) => {
+          await assertToolAllowed(policy, logger, "workspace_privileged_user_review");
+          const args = PrivilegedUserReviewInput.parse(input);
+          logger.info("tool_called", {
+            tool: "workspace_privileged_user_review",
+            membershipLimit: args.membershipLimit,
+            activityLimit: args.activityLimit
+          });
+          const [user, memberships, activities] = await Promise.all([
+            client.getUser(args.userKey),
+            client.listGroups({ userKey: args.userKey, maxResults: args.membershipLimit }),
+            client.listActivities({
+              userKey: args.userKey,
+              maxResults: args.activityLimit,
+              startTime: args.startTime,
+              endTime: args.endTime
+            })
           ]);
-          const snapshot = buildRiskSnapshot({ users, groups, activities });
-          span.setAttribute("workspace.result.finding_count", snapshot.findings.length);
-
-          return jsonResponse({ snapshot });
-        });
-      }
+          const review = buildPrivilegedUserReview({ user, memberships, activities });
+          span.setAttribute("workspace.result.finding_count", review.findings.length);
+          span.setAttribute("workspace.result.memberships_complete", memberships.complete);
+          span.setAttribute("workspace.result.activity_complete", activities.complete);
+          return jsonResponse({ review });
+        })
     );
   }
 
   return server;
+}
+
+function toolConfig<Input extends z.ZodType, Output extends z.ZodType>(
+  name: ToolName,
+  description: string,
+  inputSchema: Input,
+  outputSchema: Output
+) {
+  return {
+    title: TOOL_PERMISSIONS[name].title,
+    description,
+    inputSchema,
+    outputSchema,
+    annotations: readOnlyAnnotations(name),
+    _meta: toolMeta(name)
+  };
+}
+
+function resultPageSchema<T extends z.ZodType>(itemSchema: T) {
+  return z.object({
+    items: z.array(itemSchema),
+    resultCount: z.number().int().nonnegative(),
+    nextPageToken: z.string().optional(),
+    complete: z.boolean()
+  });
+}
+
+function validateActivityWindow(
+  input: { startTime: string; endTime: string },
+  context: z.RefinementCtx
+): void {
+  const start = Date.parse(input.startTime);
+  const end = Date.parse(input.endTime);
+  const maximumWindowMs = 31 * 24 * 60 * 60 * 1000;
+
+  if (start >= end) {
+    context.addIssue({
+      code: "custom",
+      path: ["endTime"],
+      message: "endTime must be after startTime"
+    });
+  } else if (end - start > maximumWindowMs) {
+    context.addIssue({
+      code: "custom",
+      path: ["endTime"],
+      message: "activity search windows cannot exceed 31 days"
+    });
+  }
+}
+
+function withoutActivityParameters(
+  page: ResultPage<WorkspaceActivity>
+): ResultPage<WorkspaceActivity> {
+  return {
+    ...page,
+    items: page.items.map((activity) => ({
+      ...activity,
+      events: activity.events.map(({ parameters: _parameters, ...event }) => event)
+    }))
+  };
+}
+
+function recordPageResult(
+  span: { setAttribute(name: string, value: string | number | boolean): unknown },
+  page: { resultCount: number; complete: boolean }
+): void {
+  span.setAttribute("workspace.result.count", page.resultCount);
+  span.setAttribute("workspace.result.complete", page.complete);
 }
 
 function toolCanBeRegistered(policy: ToolPolicy, logger: Logger, name: ToolName): boolean {
@@ -214,16 +477,20 @@ function withToolSpan<T>(
   meta: Parameters<typeof mcpParentContext>[0],
   operation: Parameters<typeof withSpan<T>>[2]
 ): Promise<T> {
-  return withSpan(`tools/call ${name}`, {
-    kind: SpanKind.SERVER,
-    parentContext: mcpParentContext(meta),
-    attributes: {
-      "mcp.method.name": "tools/call",
-      "mcp.tool.name": name,
-      "mcp.tool.read_only": true,
-      "policy.profile": policy.profile
-    }
-  }, operation);
+  return withSpan(
+    `tools/call ${name}`,
+    {
+      kind: SpanKind.SERVER,
+      parentContext: mcpParentContext(meta),
+      attributes: {
+        "mcp.method.name": "tools/call",
+        "mcp.tool.name": name,
+        "mcp.tool.read_only": true,
+        "policy.profile": policy.profile
+      }
+    },
+    operation
+  );
 }
 
 function readOnlyAnnotations(name: ToolName): ToolAnnotations {
@@ -243,13 +510,14 @@ function toolMeta(name: ToolName) {
   };
 }
 
-function jsonResponse(data: unknown) {
+function jsonResponse<T extends Record<string, unknown>>(data: T) {
   return {
     content: [
       {
         type: "text" as const,
         text: JSON.stringify(data, null, 2)
       }
-    ]
+    ],
+    structuredContent: data
   };
 }
