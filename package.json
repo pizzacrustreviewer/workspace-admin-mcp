@@ -1,0 +1,47 @@
+{
+  "name": "google-workspace-mcp-admin-server",
+  "version": "0.1.0",
+  "description": "Read-only MCP server for Google Workspace admin intelligence with enterprise guardrails.",
+  "type": "module",
+  "bin": {
+    "workspace-admin-mcp": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsx src/index.ts",
+    "dev:traced": "node --import tsx --import ./src/instrumentation.ts ./src/index.ts",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "node dist/index.js",
+    "start:traced": "node --import ./dist/instrumentation.js ./dist/index.js"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "google-workspace",
+    "admin-sdk",
+    "enterprise-ai"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/server": "^2.0.0",
+    "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.221.0",
+    "@opentelemetry/resources": "^2.10.0",
+    "@opentelemetry/sdk-node": "^0.221.0",
+    "@opentelemetry/semantic-conventions": "^1.43.0",
+    "googleapis": "^176.0.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@opentelemetry/sdk-trace-base": "^2.10.0",
+    "@opentelemetry/sdk-trace-node": "^2.10.0",
+    "@types/node": "^24.3.0",
+    "tsx": "^4.23.12",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.11"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
