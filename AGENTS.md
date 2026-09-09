@@ -20,6 +20,12 @@ OpenTelemetry     cross-boundary observability
 - Never pass an inbound MCP token through to Google.
 - Derive outbound Google scopes from the final exposed tool set.
 - Stateless transport does not make an operation safe to retry.
+- Tool allowlists are not a sandbox. Never claim agent containment when the agent
+  host can read Google credentials or invoke their signing identity.
+- A single-user audit selector identifies the actor, not necessarily the affected
+  user. Preserve that distinction in tool names, outputs, and findings.
+- Treat missing evidence as unknown, not safe. Traces are not a durable audit log.
+- Use synthetic data by default until a separate test tenant is explicitly available.
 
 ## Privileged Changes
 
@@ -47,6 +53,10 @@ Remote HTTP, inbound OAuth verification, protected-resource metadata, gateway co
 - Preserve pagination and completeness markers in every list result.
 - Add tests for policy denial, scope boundaries, mapping, trace propagation, redaction, retries, and idempotency as those features evolve.
 - Keep implementation claims aligned with `docs/ENTERPRISE_RUNTIME.md` and `docs/ROADMAP.md`.
+- Use the release contract and milestone table in `docs/ROADMAP.md` as the execution
+  plan. Update milestone progress after implementation; completing a batch does not
+  mean the product is finished. Real Google verification is blocked until the
+  separate test tenant is available, but synthetic development can continue.
 
 Before completing a change, run:
 

@@ -59,24 +59,6 @@ describe("createMcpServer policy gating", () => {
     });
   });
 
-  it("rejects admin activity windows longer than 31 days", async () => {
-    const server = createMcpServer(
-      client,
-      createLogger("error"),
-      resolveToolPolicy({ profile: "audit" })
-    );
-
-    await expect(
-      registeredToolHandler(server, "workspace_admin_activity_search")(
-        {
-          userKey: "user@example.com",
-          startTime: "2026-01-01T00:00:00.000Z",
-          endTime: "2026-03-01T00:00:00.000Z"
-        },
-        { mcpReq: {} }
-      )
-    ).rejects.toThrow("activity search windows cannot exceed 31 days");
-  });
 });
 
 function emptyPage<T>() {

@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { McpServer } from "@modelcontextprotocol/server";
 import type { ToolAnnotations } from "@modelcontextprotocol/server";
 import { SpanKind } from "@opentelemetry/api";
@@ -15,6 +16,9 @@ import {
 const MaxResultsSchema = z.number().int().min(1).max(200).default(50);
 const PageTokenSchema = z.string().min(1).max(2048).optional();
 const ResourceKeySchema = z.string().trim().min(1).max(320).regex(/^[^\r\n]+$/);
+const AuditActorSchema = ResourceKeySchema.refine((key) => key.toLowerCase() !== "all", {
+  message: "An individual audit actor is required; all is not permitted"
+});
 
 const UsersListInput = z.object({
   maxResults: MaxResultsSchema,
@@ -44,7 +48,7 @@ const UserMembershipsListInput = z.object({
 
 const ActivitySearchInput = z
   .object({
-    userKey: ResourceKeySchema,
+    userKey: AuditActorSchema,
     maxResults: z.number().int().min(1).max(100).default(25),
     eventName: z.string().regex(/^[A-Za-z0-9_]+$/).max(120).optional(),
     startTime: z.iso.datetime(),
@@ -56,9 +60,11 @@ const ActivitySearchInput = z
 
 const PrivilegedUserReviewInput = z
   .object({
-    userKey: ResourceKeySchema,
+    userKey: AuditActorSchema,
     membershipLimit: z.number().int().min(1).max(200).default(100),
     activityLimit: z.number().int().min(1).max(100).default(50),
+    membershipPageToken: PageTokenSchema,
+    activityPageToken: PageTokenSchema,
     startTime: z.iso.datetime(),
     endTime: z.iso.datetime()
   })
@@ -178,7 +184,7 @@ export function createMcpServer(
         UsersListOutput
       ),
       async (input, ctx) =>
-        withToolSpan("workspace_users_list", policy, ctx.mcpReq._meta, async (span) => {
+        withToolSpan("workspace_users_list", policy, logger, ctx.mcpReq._meta, async (span) => {
           await assertToolAllowed(policy, logger, "workspace_users_list");
           const args = UsersListInput.parse(input);
           logger.info("tool_called", {
@@ -189,7 +195,7 @@ export function createMcpServer(
           });
           const users = await client.listUsers(args);
           recordPageResult(span, users);
-          return jsonResponse({ users });
+          return jsonResponse(UsersListOutput, { users });
         })
     );
   }
@@ -204,12 +210,12 @@ export function createMcpServer(
         UserGetOutput
       ),
       async (input, ctx) =>
-        withToolSpan("workspace_user_get", policy, ctx.mcpReq._meta, async () => {
+        withToolSpan("workspace_user_get", policy, logger, ctx.mcpReq._meta, async () => {
           await assertToolAllowed(policy, logger, "workspace_user_get");
           const args = UserGetInput.parse(input);
           logger.info("tool_called", { tool: "workspace_user_get" });
           const user = await client.getUser(args.userKey);
-          return jsonResponse({ user });
+          return jsonResponse(UserGetOutput, { user });
         })
     );
   }
@@ -224,7 +230,7 @@ export function createMcpServer(
         GroupsListOutput
       ),
       async (input, ctx) =>
-        withToolSpan("workspace_groups_list", policy, ctx.mcpReq._meta, async (span) => {
+        withToolSpan("workspace_groups_list", policy, logger, ctx.mcpReq._meta, async (span) => {
           await assertToolAllowed(policy, logger, "workspace_groups_list");
           const args = GroupsListInput.parse(input);
           logger.info("tool_called", {
@@ -235,7 +241,7 @@ export function createMcpServer(
           });
           const groups = await client.listGroups(args);
           recordPageResult(span, groups);
-          return jsonResponse({ groups });
+          return jsonResponse(GroupsListOutput, { groups });
         })
     );
   }
@@ -250,7 +256,7 @@ export function createMcpServer(
         GroupMembersListOutput
       ),
       async (input, ctx) =>
-        withToolSpan("workspace_group_members_list", policy, ctx.mcpReq._meta, async (span) => {
+        withToolSpan("workspace_group_members_list", policy, logger, ctx.mcpReq._meta, async (span) => {
           await assertToolAllowed(policy, logger, "workspace_group_members_list");
           const args = GroupMembersListInput.parse(input);
           logger.info("tool_called", {
@@ -260,7 +266,7 @@ export function createMcpServer(
           });
           const members = await client.listGroupMembers(args);
           recordPageResult(span, members);
-          return jsonResponse({ members });
+          return jsonResponse(GroupMembersListOutput, { members });
         })
     );
   }
@@ -275,7 +281,7 @@ export function createMcpServer(
         GroupsListOutput
       ),
       async (input, ctx) =>
-        withToolSpan("workspace_user_memberships_list", policy, ctx.mcpReq._meta, async (span) => {
+        withToolSpan("workspace_user_memberships_list", policy, logger, ctx.mcpReq._meta, async (span) => {
           await assertToolAllowed(policy, logger, "workspace_user_memberships_list");
           const args = UserMembershipsListInput.parse(input);
           logger.info("tool_called", {
@@ -289,7 +295,7 @@ export function createMcpServer(
             pageToken: args.pageToken
           });
           recordPageResult(span, groups);
-          return jsonResponse({ groups });
+          return jsonResponse(GroupsListOutput, { groups });
         })
     );
   }
@@ -299,12 +305,12 @@ export function createMcpServer(
       "workspace_admin_activity_search",
       toolConfig(
         "workspace_admin_activity_search",
-        "Search a bounded Admin audit window for one user. Event parameters are excluded by default.",
+        "Search Admin actions performed by one user, not actions targeting that user. Event parameters are excluded by default.",
         ActivitySearchInput,
         ActivitySearchOutput
       ),
       async (input, ctx) =>
-        withToolSpan("workspace_admin_activity_search", policy, ctx.mcpReq._meta, async (span) => {
+        withToolSpan("workspace_admin_activity_search", policy, logger, ctx.mcpReq._meta, async (span) => {
           await assertToolAllowed(policy, logger, "workspace_admin_activity_search");
           const args = ActivitySearchInput.parse(input);
           logger.info("tool_called", {
@@ -317,7 +323,7 @@ export function createMcpServer(
           const page = await client.listActivities(args);
           const activities = args.includeParameters ? page : withoutActivityParameters(page);
           recordPageResult(span, activities);
-          return jsonResponse({ activities });
+          return jsonResponse(ActivitySearchOutput, { activities });
         })
     );
   }
@@ -327,12 +333,12 @@ export function createMcpServer(
       "workspace_privileged_user_review",
       toolConfig(
         "workspace_privileged_user_review",
-        "Inspect one user's privilege state, memberships, and bounded Admin activity evidence.",
+        "Inspect one user's privilege state, memberships, and Admin actions performed by that user. Evidence pages can be continued independently.",
         PrivilegedUserReviewInput,
         PrivilegedUserReviewOutput
       ),
       async (input, ctx) =>
-        withToolSpan("workspace_privileged_user_review", policy, ctx.mcpReq._meta, async (span) => {
+        withToolSpan("workspace_privileged_user_review", policy, logger, ctx.mcpReq._meta, async (span) => {
           await assertToolAllowed(policy, logger, "workspace_privileged_user_review");
           const args = PrivilegedUserReviewInput.parse(input);
           logger.info("tool_called", {
@@ -342,19 +348,24 @@ export function createMcpServer(
           });
           const [user, memberships, activities] = await Promise.all([
             client.getUser(args.userKey),
-            client.listGroups({ userKey: args.userKey, maxResults: args.membershipLimit }),
+            client.listGroups({
+              userKey: args.userKey,
+              maxResults: args.membershipLimit,
+              pageToken: args.membershipPageToken
+            }),
             client.listActivities({
               userKey: args.userKey,
               maxResults: args.activityLimit,
               startTime: args.startTime,
-              endTime: args.endTime
+              endTime: args.endTime,
+              pageToken: args.activityPageToken
             })
           ]);
           const review = buildPrivilegedUserReview({ user, memberships, activities });
           span.setAttribute("workspace.result.finding_count", review.findings.length);
           span.setAttribute("workspace.result.memberships_complete", memberships.complete);
           span.setAttribute("workspace.result.activity_complete", activities.complete);
-          return jsonResponse({ review });
+          return jsonResponse(PrivilegedUserReviewOutput, { review });
         })
     );
   }
@@ -474,6 +485,7 @@ async function assertToolAllowed(policy: ToolPolicy, logger: Logger, name: ToolN
 function withToolSpan<T>(
   name: ToolName,
   policy: ToolPolicy,
+  logger: Logger,
   meta: Parameters<typeof mcpParentContext>[0],
   operation: Parameters<typeof withSpan<T>>[2]
 ): Promise<T> {
@@ -489,7 +501,18 @@ function withToolSpan<T>(
         "policy.profile": policy.profile
       }
     },
-    operation
+    async (span) => {
+      try {
+        return await operation(span);
+      } catch {
+        const operationId = randomUUID();
+        const code = "WORKSPACE_TOOL_FAILED";
+        span.setAttribute("workspace.operation.id", operationId);
+        logger.error("tool_failed", { tool: name, code, operationId });
+        // The SDK returns thrown messages to callers. Never attach the original cause.
+        throw new Error(`${code}: Request could not be completed. Reference: ${operationId}`);
+      }
+    }
   );
 }
 
@@ -510,14 +533,16 @@ function toolMeta(name: ToolName) {
   };
 }
 
-function jsonResponse<T extends Record<string, unknown>>(data: T) {
+function jsonResponse<T extends Record<string, unknown>>(schema: z.ZodType<T>, data: T) {
+  // Validate inside the sanitized failure boundary, before the SDK's own validation.
+  const validated = schema.parse(data);
   return {
     content: [
       {
         type: "text" as const,
-        text: JSON.stringify(data, null, 2)
+        text: JSON.stringify(validated, null, 2)
       }
     ],
-    structuredContent: data
+    structuredContent: validated
   };
 }

@@ -6,6 +6,12 @@ The server treats model-driven administration as distributed systems work. MCP i
 
 ## Current Status
 
+This is a prototype, not a credential-isolated enterprise deployment. The
+[2026-09-09 design review](docs/DESIGN_REVIEW_2026-09-09.md) records the findings and
+their resolution status. Audit-selector, tool-error disclosure, and review pagination
+fixes now have stdio wire regressions. Tool restrictions still do not contain an
+agent host that can access the Google credential. Live Google validation is pending.
+
 Version 0.2 is a local stdio server with explicit MCP 2026-07-28 negotiation through the official TypeScript SDK. It also accepts legacy 2025-era stdio clients.
 
 Implemented:
@@ -56,7 +62,7 @@ identify subject
 | `workspace_group_members_list` | List direct members of one group using a dedicated member-read scope. |
 | `workspace_users_list` | List a bounded page of users. |
 | `workspace_groups_list` | List a bounded page of groups. |
-| `workspace_admin_activity_search` | Search one user's Admin audit activity within a maximum 31-day window. |
+| `workspace_admin_activity_search` | Search Admin actions performed by one user within a maximum 31-day window, not actions targeting that user. |
 
 List tools return this explicit page contract:
 
@@ -70,6 +76,11 @@ List tools return this explicit page contract:
 ```
 
 Audit event parameters are excluded by default. Callers must explicitly request them with `includeParameters: true`.
+
+Under `risk`, continue review evidence with `membershipPageToken` and
+`activityPageToken`, using the respective result's `nextPageToken`. Keep the subject,
+window, and limits unchanged. Omitted tokens fetch first pages; results describe the
+current pages, not an accumulated investigation or a consistent provider snapshot.
 
 ## Security Profiles
 

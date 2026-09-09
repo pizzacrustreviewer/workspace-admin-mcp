@@ -43,6 +43,15 @@ The current repository does not provide HTTP OAuth, protected-resource metadata,
 
 ## Identity Boundary
 
+The local stdio prototype does not isolate credentials from a shell-capable agent
+sharing its OS identity. Startup profiles restrict MCP calls, not direct use of
+the Google credential. The first remote milestone must separate credential and
+signing authority from the agent host, not merely replace stdio with HTTP.
+
+The identity modes below are design options, not implemented interchangeable
+Google flows. Choose and test one concrete flow for the single-tenant milestone.
+Workload identity alone does not confer Google Workspace delegated access.
+
 Remote MCP is an OAuth resource server. It must validate issuer, audience/resource, expiry, tenant, principal, and scopes before dispatch. An inbound token intended for this MCP server must never be forwarded to Google.
 
 Outbound Google access uses a separate credential:
