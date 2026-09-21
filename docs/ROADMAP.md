@@ -1,6 +1,6 @@
 # Roadmap
 
-Replanned 2026-09-09. These are acceptance gates, not claims of completed work.
+These are release acceptance criteria, not claims of completed work.
 
 ## Release Contract
 
@@ -57,7 +57,7 @@ agent containment, Google integration, or remote authorization.
 
 ## Gate 1 - Trustworthy Read-Only Investigation
 
-Implemented after the review: aggregate actor rejection, sanitized tool failures
+Implemented: aggregate actor rejection, sanitized tool failures
 including output validation, independent review page tokens, and JSON-RPC/stdio
 regressions for both supported protocol eras. The remaining items below are still
 required to complete this gate; live Google integration remains unverified.
@@ -140,10 +140,8 @@ this service becomes an independently discoverable agent.
 
 ## Current Assumptions and Dependencies
 
-- Anthony has no separate Workspace tenant yet and intends to obtain one this week.
-  This blocks real Google verification, not local implementation. Never use an
-  employer tenant or employer data as an implicit substitute.
+- A dedicated Workspace test tenant is required for live integration verification.
+  Synthetic development can continue without it. Employer tenants and data are not
+  authorized substitutes.
 - Privileged-account investigation is the selected first workflow. Offboarding
   mutations remain outside this release unless explicitly reprioritized.
-- No additional architecture review is needed before the next implementation batch.
-  Escalate only a concrete choice that changes authority, cost, or release scope.

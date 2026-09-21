@@ -45,6 +45,10 @@ Remote HTTP, inbound OAuth verification, protected-resource metadata, gateway co
 
 ## Engineering Rules
 
+- Keep public documentation reader-facing: supported behavior, setup, limitations,
+  validation evidence, and release criteria. Keep brainstorming, agent coordination,
+  personal timelines, and raw review transcripts in local untracked notes, not the
+  README or published docs. Preserve accurate security limitations and AI-use disclosure.
 - Do not add AI tools or vendors as commit authors or co-authors, or append generated-
   by branding to commit messages or pull requests. Preserve real human attribution
   and factual AI-use disclosures in project documentation. Use the configured human

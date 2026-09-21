@@ -6,11 +6,10 @@ The server treats model-driven administration as distributed systems work. MCP i
 
 ## Current Status
 
-This is a prototype, not a credential-isolated enterprise deployment. The
-[2026-09-09 design review](docs/DESIGN_REVIEW_2026-09-09.md) records the findings and
-their resolution status. Audit-selector, tool-error disclosure, and review pagination
-fixes now have stdio wire regressions. Tool restrictions still do not contain an
-agent host that can access the Google credential. Live Google validation is pending.
+Experimental, read-only release for local use. Live Google Workspace integration
+has not yet been validated in a dedicated test tenant. The server does not isolate
+Google credentials from an agent running under the same OS identity and should not
+be treated as a sandbox for an untrusted agent.
 
 Version 0.2 is a local stdio server with explicit MCP 2026-07-28 negotiation through the official TypeScript SDK. It also accepts legacy 2025-era stdio clients.
 
@@ -150,3 +149,4 @@ Span attributes are allowlisted operational metadata: tool name, policy decision
 - [Agent Containment](docs/AGENT_CONTAINMENT.md)
 - [Enterprise Runtime](docs/ENTERPRISE_RUNTIME.md)
 - [Roadmap](docs/ROADMAP.md)
+- [Validation](docs/VALIDATION.md)
