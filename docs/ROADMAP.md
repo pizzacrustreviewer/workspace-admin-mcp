@@ -16,10 +16,10 @@ describe the project as an experimental prototype. Do not claim production readi
 
 | Order | Deliverable | Current status | Completion evidence |
 | --- | --- | --- | --- |
-| 1 | Correct scope and evidence contract | In progress | Canonical subject resolution, fail-closed config, policy-controlled sensitive fields, explicit unknown/partial evidence, regression tests |
+| 1 | Correct scope and evidence contract | In progress: explicit policy config fails closed | Canonical subject resolution, fail-closed config, policy-controlled sensitive fields, explicit unknown/partial evidence, regression tests |
 | 2 | Reliable bounded reads | In progress: page continuation fixed | Deadlines, classified bounded retries, concurrency/result budgets, timeout and partial-failure tests |
-| 3 | Credential-free demo and adversarial fixtures | Not started | Documented command works from a clean checkout; normal, incomplete, and denied cases are reproducible without Google or a paid model |
-| 4 | Authenticated, credential-isolated deployment | Not started | One real identity-provider flow, per-request grants, isolated Google identity, negative authorization/credential-access tests, protected audit records, trace example |
+| 3 | Credential-free demo and adversarial fixtures | In progress: synthetic stdio and startup smoke test | Documented command works from a clean checkout; normal, incomplete, and denied cases are reproducible without Google or a paid model |
+| 4 | Authenticated, credential-isolated deployment | In progress: HTTP JWT verification and per-request tool scopes; deployment unverified | One real identity-provider flow, per-request grants, isolated Google identity, negative authorization/credential-access tests, protected audit records, trace example |
 | 5 | Real Workspace verification | Blocked on test tenant | Dummy-account fixtures; actual scope denial, actor semantics, pagination, membership and error checks; reproducible integration report |
 | 6 | Open-source release packaging | Not started | Fresh-install and client smoke tests, supported runtime CI, secret/dependency checks, contribution/security guidance, deployment and incident runbooks, changelog, reviewed merge and tagged release |
 
@@ -31,8 +31,8 @@ documentation alongside implementation rather than treating it as a final rewrit
 
 Finish milestone 1 before adding new tools:
 
-1. Reject malformed explicit tool/scope configuration; distinguish omitted defaults
-   from an intentionally empty deny-all configuration.
+1. Preserve the implemented fail-closed configuration behavior: malformed explicit
+   tool/scope names are rejected and an intentionally empty configuration denies all.
 2. Move audit-parameter permission into server policy. Caller opt-in alone must not
    grant access to fields that the configured policy prohibits.
 3. Resolve the review subject once before dependent provider calls, with provider-
@@ -52,8 +52,9 @@ Retain `WorkspaceAdminClient`, the central tool policy, restricted `risk` profil
 structured results, deterministic findings, and content-free tracing. Do not merge
 the old Python mutation or deployment paths into the current runtime wholesale.
 
-Version 0.2 is a local read-only stdio prototype. Passing unit tests does not prove
-agent containment, Google integration, or remote authorization.
+Version 0.2 has synthetic-only stdio and an experimental authenticated HTTP path.
+Passing application tests does not prove agent containment, Google integration,
+or a deployed identity-provider flow. See [HTTP Deployment](HTTP_DEPLOYMENT.md).
 
 ## Gate 1 - Trustworthy Read-Only Investigation
 

@@ -163,14 +163,15 @@ function hasRequiredScopes(toolName: ToolName, grantedScopes: ToolScope[]): bool
 }
 
 function parseCsv<const T extends string>(value: string | undefined, allowed: readonly T[]): T[] | undefined {
-  if (!value?.trim()) {
+  if (value === undefined) {
     return undefined;
   }
-
-  return value
-    .split(",")
-    .map((item) => item.trim())
-    .filter((item): item is T => allowed.includes(item as T));
+  if (!value.trim()) return [];
+  const items = value.split(",").map((item) => item.trim());
+  if (items.some((item) => !allowed.includes(item as T))) {
+    throw new Error("Invalid explicit tool policy configuration");
+  }
+  return unique(items as T[]);
 }
 
 function unique<T>(items: T[]): T[] {

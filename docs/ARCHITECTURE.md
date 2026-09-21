@@ -2,24 +2,30 @@
 
 ## System Boundary
 
-The server exposes a read-only MCP surface over stdio. It retrieves Google Workspace administration data, normalizes provider responses, and returns structured results to an MCP client.
+The server exposes a synthetic read-only stdio demo and an experimental authenticated
+HTTP service. The service can retrieve Google Workspace data through a separate
+credential; handlers normalize provider responses into structured MCP results.
 
 ```text
 MCP client
-  -> MCP 2026/2025 stdio negotiation
+  -> HTTP JWT verification + scope intersection (or synthetic stdio negotiation)
   -> tools/call span
   -> server-side tool policy span
   -> thin MCP handler
   -> WorkspaceAdminClient
-  -> Google API client span
-  -> Directory API / Reports API
+  -> synthetic fixtures OR Google API client span
+  -> Directory API / Reports API (HTTP service only)
 ```
 
 ## Control Flow
 
 `serveStdio` creates one MCP server for the negotiated connection era. Startup policy determines which tools are registered. Every handler repeats the authorization check before calling the provider client.
 
-The local process uses one configured delegated administrator. A future remote server must replace startup-only policy with per-request principal, tenant, audience, and scope checks.
+HTTP creates a fresh server per request after validating the access token and
+intersecting its scopes with configured policy. The Google factory sees only that
+policy, never the inbound token. Tenant and delegated administrator are fixed by
+service configuration. Per-investigation grants and durable principal audit remain
+unimplemented. Stdio does not instantiate Google authentication.
 
 ## Provider Boundary
 
@@ -47,10 +53,9 @@ The server accepts W3C `traceparent` from MCP request metadata and starts nested
 
 Before remote deployment or write operations, add:
 
-- MCP 2026-07-28 stateless HTTP handling
-- OAuth protected-resource metadata and bearer-token validation
-- per-request tool authorization
-- a separate Google workload, delegated, or on-behalf-of credential
+- deployment verification of the implemented HTTP and JWT authorization boundary
+- per-investigation target, field, time, and budget grants
+- protected audit records and independently isolated Google credentials
 - gateway policy on authenticated method and tool metadata
 - bounded retries with deadlines
 - durable operation and idempotency records

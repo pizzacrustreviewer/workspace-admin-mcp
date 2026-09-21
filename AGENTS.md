@@ -39,9 +39,15 @@ Approval must bind the principal, tenant, exact diff hash, operation ID, and exp
 
 ## Current Boundary
 
-Version 0.2 is a local read-only stdio server. It supports modern MCP negotiation, scoped discovery, structured page results, deterministic privileged-user review, redacted logs, and OpenTelemetry spans through the Google adapter.
+Version 0.2 provides synthetic-only local stdio and an experimental authenticated
+HTTP service. It supports scoped discovery, structured pages, deterministic review,
+redacted logs, and OpenTelemetry spans through the Google adapter. HTTP verifies
+JWT access tokens per request and intersects scopes with static server policy.
 
-Remote HTTP, inbound OAuth verification, protected-resource metadata, gateway configuration, token exchange, durable idempotency, and approval-gated writes are not implemented.
+Protected-resource metadata is implemented. Real IdP/Google integration and isolated
+deployment remain unverified. Per-investigation grants, durable principal audit,
+gateway configuration, token exchange, durable idempotency, and writes are absent.
+Never restore Google credentials to the stdio/client setup.
 
 ## Engineering Rules
 

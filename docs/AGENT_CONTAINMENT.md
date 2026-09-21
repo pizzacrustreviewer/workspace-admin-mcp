@@ -1,6 +1,8 @@
 # Agent Containment Model
 
-Broad tool catalogs, broad credentials, and untrusted enterprise content are a dangerous combination. This server narrows all three.
+Broad tool catalogs, broad credentials, and untrusted enterprise content are a
+dangerous combination. This server narrows tools and scopes; it does not make
+returned content trustworthy or contain an agent that can access Google credentials.
 
 ## Discovery Policy
 
@@ -13,7 +15,9 @@ Broad tool catalogs, broad credentials, and untrusted enterprise content are a d
 
 The selected profile is an upper bound. `WORKSPACE_MCP_ALLOWED_TOOLS` can only narrow it. Denied tools are not registered and therefore do not appear in MCP discovery.
 
-Handlers repeat the policy check at invocation. This is defense in depth now and a required hook for per-request authorization in the future.
+HTTP intersects token scopes with server policy before creating the request's
+catalog. Handlers repeat the policy check at invocation. Stdio uses synthetic data
+only. See [HTTP Deployment](HTTP_DEPLOYMENT.md) for the required identity separation.
 
 ## Credential Scopes
 

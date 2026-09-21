@@ -1,40 +1,32 @@
 #!/usr/bin/env node
 import { serveStdio } from "@modelcontextprotocol/server/stdio";
-import { loadConfig } from "./config.js";
+import { assertSyntheticStdio, loadPolicyConfig } from "./config.js";
 import { createLogger } from "./logger.js";
 import { createMcpServer } from "./mcpServer.js";
-import { resolveToolPolicy, toGoogleScopes } from "./security/toolPolicy.js";
-import { createGoogleAuth } from "./workspace/googleAuth.js";
-import { GoogleWorkspaceAdminClient } from "./workspace/googleWorkspaceAdminClient.js";
+import { resolveToolPolicy } from "./security/toolPolicy.js";
+import { SyntheticWorkspaceAdminClient } from "./workspace/syntheticWorkspaceAdminClient.js";
 
 function main() {
-  const config = loadConfig();
-  const logger = createLogger(config.logLevel);
-  const policy = resolveToolPolicy({
-    profile: config.securityProfile,
-    allowedTools: config.allowedTools,
-    grantedScopes: config.grantedScopes
-  });
-  const auth = createGoogleAuth(config, toGoogleScopes(policy.grantedScopes));
-  const client = new GoogleWorkspaceAdminClient(auth, config.customerId);
+  assertSyntheticStdio();
+  const logger = createLogger("info");
+  const policy = resolveToolPolicy(loadPolicyConfig());
+  const client = new SyntheticWorkspaceAdminClient();
   logger.info("server_starting", {
     name: "google-workspace-admin",
-    customerId: config.customerId,
-    delegatedAdmin: config.delegatedAdmin,
+    dataSource: "synthetic",
     securityProfile: policy.profile,
     exposedTools: policy.allowedTools,
     grantedScopes: policy.grantedScopes
   });
 
   serveStdio(() => createMcpServer(client, logger, policy), {
-    onerror: (error) => logger.error("transport_error", { errorType: error.name })
+    onerror: () => logger.error("transport_error", { code: "STDIO_TRANSPORT_ERROR" })
   });
 }
 
 try {
   main();
-} catch (error: unknown) {
-  const message = error instanceof Error ? error.message : String(error);
-  process.stderr.write(JSON.stringify({ level: "error", event: "server_crashed", message }) + "\n");
+} catch {
+  process.stderr.write(JSON.stringify({ level: "error", event: "startup_failed", code: "CHECK_SYNTHETIC_STDIO_CONFIG" }) + "\n");
   process.exit(1);
 }

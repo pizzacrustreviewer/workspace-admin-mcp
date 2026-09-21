@@ -22,11 +22,18 @@ required. Coverage includes:
 - Log redaction and trace propagation through the Google adapter.
 - JSON-RPC framing and SDK dispatch over stdio streams for MCP 2025-11-25 and
   2026-07-28. These are in-process transport tests, not live-client certification.
+- Actual synthetic stdio entrypoint startup without Google credentials.
+- Signed synthetic JWTs: issuer, audience, expiry, not-before, required claims,
+  approved subject, access-token type, and trusted signature enforcement.
+- Per-request HTTP scope isolation, discovery narrowing, and denied direct calls.
+- Host/Origin rejection, protected-resource metadata, and real loopback HTTP requests
+  with oversized-body rejection.
+- Fail-closed explicit policy configuration and credential-bearing stdio rejection.
 
 ## Limits of the Evidence
 
 Passing these checks does not establish live Google compatibility, credential
-isolation, remote authorization, or production readiness. Dedicated-tenant
+isolation, deployed IdP/client compatibility, or production readiness. Dedicated-tenant
 integration tests and deployment-level security tests remain release requirements
 in the [roadmap](ROADMAP.md).
 

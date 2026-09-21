@@ -9,10 +9,12 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "dev": "tsx src/index.ts",
+    "dev:http": "tsx src/http.ts",
     "dev:traced": "node --import tsx --import ./src/instrumentation.ts ./src/index.ts",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "start": "node dist/index.js",
+    "start:http": "node dist/http.js",
     "start:traced": "node --import ./dist/instrumentation.js ./dist/index.js"
   },
   "keywords": [
@@ -24,6 +26,7 @@
   ],
   "license": "MIT",
   "dependencies": {
+    "@modelcontextprotocol/node": "^2.0.0",
     "@modelcontextprotocol/server": "^2.0.0",
     "@opentelemetry/api": "^1.9.1",
     "@opentelemetry/exporter-trace-otlp-http": "^0.221.0",
@@ -31,6 +34,7 @@
     "@opentelemetry/sdk-node": "^0.221.0",
     "@opentelemetry/semantic-conventions": "^1.43.0",
     "googleapis": "^176.0.0",
+    "jose": "^6.2.12",
     "zod": "^4.4.3"
   },
   "devDependencies": {

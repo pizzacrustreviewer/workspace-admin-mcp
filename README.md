@@ -6,12 +6,13 @@ The server treats model-driven administration as distributed systems work. MCP i
 
 ## Current Status
 
-Experimental, read-only release for local use. Live Google Workspace integration
-has not yet been validated in a dedicated test tenant. The server does not isolate
-Google credentials from an agent running under the same OS identity and should not
-be treated as a sandbox for an untrusted agent.
+Experimental, read-only prototype. Local stdio is a credential-free synthetic demo.
+The authenticated HTTP entrypoint can hold Google credentials on a separate service
+host. Live Google and identity-provider integration have not yet been validated.
+HTTP alone does not isolate credentials: the agent must not be able to access the
+service's files, environment, or signing identity.
 
-Version 0.2 is a local stdio server with explicit MCP 2026-07-28 negotiation through the official TypeScript SDK. It also accepts legacy 2025-era stdio clients.
+Version 0.2 uses the official TypeScript SDK for modern MCP and legacy stdio clients.
 
 Implemented:
 
@@ -23,11 +24,14 @@ Implemented:
 - W3C `traceparent` propagation across MCP, policy, and Google API spans
 - content-free telemetry and redacted structured logs
 - provider-boundary, policy, trace, mapping, and redaction tests
+- synthetic-only stdio, with startup rejection of Google key-bearing configurations
+- stateless HTTP with per-request JWT access-token verification and scoped discovery
+- OAuth protected-resource metadata, trusted Host/Origin checks, and bounded request bodies
 
 Not implemented:
 
-- remote stateless HTTP
-- inbound OAuth resource-server validation
+- demonstrated deployment isolation and live identity-provider integration
+- per-investigation target/field grants and durable principal audit records
 - gateway deployment policy
 - delegated or on-behalf-of token exchange
 - durable idempotency and approval-gated writes
@@ -99,8 +103,7 @@ See the full [Tool Catalog](docs/TOOL_CATALOG.md) and [Agent Containment Model](
 Requirements:
 
 - Node.js 22 or newer
-- a Google Cloud service account configured for Workspace domain-wide delegation
-- a delegated administrator subject authorized only for the required read scopes
+- no Google account, credential, or paid model is needed for the local demo
 
 ```bash
 npm ci
@@ -110,7 +113,10 @@ npm run build
 npm run dev
 ```
 
-Copy the variable names from `.env.example` into the process environment. The server does not load `.env` files automatically.
+The stdio demo uses `admin@example.test` (or `synthetic-admin`) and an audit event
+at `2026-09-01T12:00:00Z`. Use a window containing that time for the review tool.
+It is fixed test data, not a live Workspace connection. Inventory queries and
+unknown fixture subjects are rejected rather than simulated as successful reads.
 
 Example MCP client configuration after `npm run build`:
 
@@ -121,15 +127,17 @@ Example MCP client configuration after `npm run build`:
       "command": "node",
       "args": ["/absolute/path/to/workspace-admin-mcp/dist/index.js"],
       "env": {
-        "GOOGLE_WORKSPACE_CUSTOMER_ID": "my_customer",
-        "GOOGLE_WORKSPACE_DELEGATED_ADMIN": "admin@example.com",
-        "GOOGLE_SERVICE_ACCOUNT_EMAIL": "workspace-admin@example-project.iam.gserviceaccount.com",
-        "GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY": "-----BEGIN PRIVATE KEY-----\\n...\\n-----END PRIVATE KEY-----\\n"
+        "WORKSPACE_MCP_DATA_SOURCE": "synthetic"
       }
     }
   }
 }
 ```
+
+**Migration:** stdio no longer accepts live Google credentials. Remove Google keys
+from MCP client configuration and its inherited environment. For the HTTP service,
+see [HTTP Deployment](docs/HTTP_DEPLOYMENT.md). `.env.example` is service-side
+configuration, not client configuration; environment files are not loaded automatically.
 
 ## Observability
 

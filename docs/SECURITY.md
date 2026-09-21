@@ -14,6 +14,9 @@
 - Content-free OpenTelemetry attributes
 - Inbound `tracestate` and baggage dropped
 - Zod validation for every MCP input and output
+- Synthetic-only stdio, without Google authentication
+- HTTP JWT access-token verification and scope intersection on every request
+- Explicit trusted issuer, JWKS, audience, subject list, Host and Origin
 
 ## Required Google Scopes
 
@@ -43,9 +46,15 @@ The `risk` profile does not require the group-member scope because its membershi
 
 ## Identity Limitation
 
-The local stdio process uses one configured delegated administrator subject. That is acceptable for a local single-operator demonstration, not for a multi-user remote service.
+Local stdio is a synthetic demo only. The HTTP service uses one configured Google
+delegated administrator and one tenant. It validates incoming access tokens, but
+does not yet restrict each approved caller to an individual investigation target
+or persist principal audit records. Do not expose it as a general multi-user service.
 
-A remote deployment must validate the inbound issuer, audience/resource, expiry, tenant, principal, and scopes on every request. The inbound MCP token must never be passed to Google. Outbound access requires a separately audience-bound credential and an audit record that preserves the initiating principal.
+A production deployment must isolate the service credentials from the agent's OS
+and signing authority and record the initiating principal in protected audit storage.
+Neither property is established merely by running HTTP. Inbound MCP tokens are
+never passed to Google. See [HTTP Deployment](HTTP_DEPLOYMENT.md).
 
 ## Data Handling
 

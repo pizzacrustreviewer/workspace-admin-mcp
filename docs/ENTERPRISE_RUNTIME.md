@@ -29,24 +29,27 @@ The current server implements the spans from `tools/call` through the Google ada
 
 ## Current Versus Target
 
-| Concern | Current local server | Target remote deployment |
+| Concern | Current prototype | Target remote deployment |
 | --- | --- | --- |
-| Transport | MCP 2026/2025-compatible stdio | MCP 2026-07-28 stateless HTTP |
-| Inbound identity | Local process boundary | OAuth/OIDC token validated per request |
-| Tool authorization | Startup profile plus repeated handler check | Gateway policy plus per-principal server policy |
-| Google identity | Service account with domain-wide delegation | Separate workload, user-delegated, or OBO credential |
+| Transport | Synthetic stdio and stateless HTTP | Deployment/client interoperability verified |
+| Inbound identity | HTTP JWT issuer/audience/expiry/subject/scope verification | Real IdP flow and protected principal audit |
+| Tool authorization | Profile intersected with HTTP token scopes, repeated handler check | Per-investigation target/field/budget grants |
+| Google identity | HTTP-only service account with domain-wide delegation | Credential identity isolated from the agent |
 | Trace | MCP, policy, and Google adapter spans | One trace across human, agent, model, gateway, MCP, and provider |
 | Retries | None | Bounded read retries with deadlines and provider error classification |
 | Writes | None | Durable proposal, approval, idempotency, execution, and verification records |
 
-The current repository does not provide HTTP OAuth, protected-resource metadata, gateway configuration, token exchange, durable idempotency, or writes.
+HTTP access-token verification and protected-resource metadata are implemented.
+Gateway configuration, token exchange, durable idempotency, and writes are absent.
+See [HTTP Deployment](HTTP_DEPLOYMENT.md) for supported token format and limitations.
 
 ## Identity Boundary
 
-The local stdio prototype does not isolate credentials from a shell-capable agent
-sharing its OS identity. Startup profiles restrict MCP calls, not direct use of
-the Google credential. The first remote milestone must separate credential and
-signing authority from the agent host, not merely replace stdio with HTTP.
+Local stdio now uses only synthetic fixtures and rejects Google key-bearing
+configuration. The HTTP service can hold Google credentials separately, but that
+isolation must be enforced by deployment permissions. A shell-capable agent sharing
+the service's OS identity can still bypass the MCP tool boundary. Deployment tests
+must prove separation of credential and signing authority, not just HTTP transport.
 
 The identity modes below are design options, not implemented interchangeable
 Google flows. Choose and test one concrete flow for the single-tenant milestone.
