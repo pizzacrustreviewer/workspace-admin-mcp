@@ -45,6 +45,10 @@ Remote HTTP, inbound OAuth verification, protected-resource metadata, gateway co
 
 ## Engineering Rules
 
+- Do not add AI tools or vendors as commit authors or co-authors, or append generated-
+  by branding to commit messages or pull requests. Preserve real human attribution
+  and factual AI-use disclosures in project documentation. Use the configured human
+  Git identity; never invent a replacement identity.
 - Keep MCP handlers thin and Google behavior behind `WorkspaceAdminClient`.
 - Register every tool in `src/security/toolPolicy.ts`.
 - Keep `risk` as the restricted default profile.
